@@ -166,7 +166,7 @@
             overflow-x: auto;
         }
         
-        /* PlantUML диаграмма - БОЛЬШАЯ И ПРОСТАЯ */
+        /* PlantUML диаграмма */
         .plantuml-container {
             width: 100%;
             min-height: 400px;
@@ -251,27 +251,83 @@
             font-style: italic;
         }
         
-        /* Подсветка текста */
+        /* ПОДСВЕТКА ТЕКСТА С ПОДПИСЯМИ */
         .highlighted-text {
-            padding: 20px;
+            padding: 25px;
             background: #f5f7fa;
             border-radius: 12px;
             font-size: 18px;
-            line-height: 1.6;
+            line-height: 1.8;
+            min-height: 150px;
         }
         
         .entity {
-            padding: 5px 10px;
-            margin: 3px;
-            border-radius: 5px;
+            padding: 8px 15px;
+            margin: 5px;
+            border-radius: 8px;
             display: inline-block;
             font-weight: 600;
             color: white;
+            position: relative;
         }
         
-        .entity-agent { background: #667eea; }
-        .entity-task { background: #00b09b; }
-        .entity-condition { background: #ff416c; }
+        .entity-agent { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+        }
+        .entity-task { 
+            background: linear-gradient(135deg, #00b09b 0%, #96c93d 100%); 
+        }
+        .entity-condition { 
+            background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%); 
+        }
+        .entity-other { 
+            background: linear-gradient(135deg, #8e9eab 0%, #eef2f3 100%); 
+            color: #333;
+        }
+        
+        .entity-label {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #2c3e50;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            font-weight: bold;
+        }
+        
+        /* Легенда */
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9ff;
+            border-radius: 8px;
+            border: 1px solid rgba(102, 126, 234, 0.2);
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+        }
+        
+        .legend-agent { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .legend-task { background: linear-gradient(135deg, #00b09b 0%, #96c93d 100%); }
+        .legend-condition { background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%); }
+        .legend-other { background: linear-gradient(135deg, #8e9eab 0%, #eef2f3 100%); }
         
         /* Адаптивность */
         @media (max-width: 768px) {
@@ -284,6 +340,8 @@
             .simple-table th, 
             .simple-table td { padding: 10px; }
             .plantuml-image { min-width: 400px; }
+            .entity { padding: 6px 12px; margin: 3px; }
+            .entity-label { font-size: 8px; padding: 1px 4px; }
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
@@ -324,6 +382,24 @@
                 <div id="result-highlighting" class="result-card">
                     <h2>Text Analysis</h2>
                     <div id="highlighted-text" class="highlighted-text"></div>
+                    <div id="legend" class="legend" style="display: none;">
+                        <div class="legend-item">
+                            <div class="legend-color legend-agent"></div>
+                            <span>AGENT</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color legend-task"></div>
+                            <span>TASK</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color legend-condition"></div>
+                            <span>CONDITION</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color legend-other"></div>
+                            <span>OTHER</span>
+                        </div>
+                    </div>
                 </div>
                 
                 <div id="result-plantuml" class="result-card">
@@ -423,7 +499,7 @@
             const words = text.split(/\s+/);
             return words.map(word => {
                 const clean = word.toLowerCase().replace(/[.,]/g, '');
-                if (['department','service','employee','customer','manager','client','tester','project','team','system','hr','finance'].some(t => clean.includes(t)))
+                if (['department','service','employee','customer','manager','client','tester','project','team','system','hr','finance','support'].some(t => clean.includes(t)))
                     return {text: word, type: 'AGENT'};
                 if (['submits','reviews','checks','processes','informs','verifies','sends','approves','accepts','analyzes','prepares','starts'].some(t => clean.includes(t)))
                     return {text: word, type: 'TASK'};
@@ -441,7 +517,6 @@
             sentences.forEach(sentence => {
                 const words = sentence.trim().split(/\s+/);
                 if (words.length >= 2) {
-                    // Берем первые 2-3 слова как агента
                     const agent = words.slice(0, Math.min(3, words.length)).join(' ');
                     if (agent && agent.length > 3) {
                         agents.add(agent);
@@ -458,23 +533,34 @@
             return sentences.map(sentence => sentence.trim());
         }
 
-        // Show entity highlighting
+        // Show entity highlighting WITH LABELS
         function showHighlighting(entities) {
             const container = document.getElementById('highlighted-text');
-            container.innerHTML = entities.map(e => 
-                `<span class="entity entity-${e.type.toLowerCase()}">${e.text}</span>`
-            ).join(' ');
+            const legend = document.getElementById('legend');
+            
+            let html = '';
+            entities.forEach(entity => {
+                const type = entity.type.toLowerCase();
+                const label = entity.type !== 'OTHER' ? entity.type : '';
+                
+                html += `<span class="entity entity-${type}">
+                    ${entity.text}
+                    ${label ? `<span class="entity-label">${label}</span>` : ''}
+                </span>`;
+            });
+            
+            container.innerHTML = html;
+            legend.style.display = 'flex';
             document.getElementById('result-highlighting').style.display = 'block';
         }
 
-        // ГЕНЕРАЦИЯ ПРОСТОГО PLANTUML
+        // ГЕНЕРАЦИЯ PLANTUML
         function generatePlantUMLText(text, agents) {
-            // Используем только первые 3 агента для читаемости
             const displayAgents = agents.slice(0, 3);
             
             let uml = `@startuml\n`;
             uml += `!theme plain\n`;
-            uml += `scale 1.5\n`; // Увеличиваем масштаб
+            uml += `scale 1.5\n`;
             uml += `skinparam sequence {\n`;
             uml += `  ArrowColor #667eea\n`;
             uml += `  ParticipantBackgroundColor #F0F5FF\n`;
@@ -485,7 +571,6 @@
             
             uml += `title Process Flow Diagram\n\n`;
             
-            // Укорачиваем длинные названия агентов
             displayAgents.forEach((agent, i) => {
                 const shortName = agent.length > 20 ? agent.substring(0, 17) + "..." : agent;
                 uml += `participant "${shortName}" as P${i}\n`;
@@ -493,7 +578,6 @@
             
             uml += `\n`;
             
-            // Простая линейная последовательность
             if (displayAgents.length >= 2) {
                 uml += `P0 -> P1 : submit request\n`;
                 uml += `activate P1\n`;
@@ -504,7 +588,6 @@
                 uml += `activate P2\n`;
             }
             
-            // Простое условие
             if (text.toLowerCase().includes('if') && displayAgents.length >= 2) {
                 uml += `\n`;
                 uml += `alt approved\n`;
@@ -519,7 +602,6 @@
                 uml += `end\n`;
                 uml += `deactivate P1\n`;
             } else {
-                // Завершаем активации если нет условий
                 if (displayAgents.length >= 3) {
                     uml += `P2 -> P0 : complete process\n`;
                     uml += `deactivate P2\n`;
@@ -610,14 +692,12 @@
             let html = '<table class="simple-table">';
             html += '<tr><th></th>';
             
-            // Header row
             displayAgents.forEach(agent => {
                 const shortName = agent.length > 15 ? agent.substring(0, 12) + "..." : agent;
                 html += `<th>${shortName}</th>`;
             });
             html += '</tr>';
             
-            // Data rows
             displayAgents.forEach((agent, i) => {
                 const shortName = agent.length > 15 ? agent.substring(0, 12) + "..." : agent;
                 html += `<tr><th>${shortName}</th>`;
@@ -645,19 +725,15 @@
             
             let html = '<div class="flow-diagram">';
             
-            // Простая линейная блок-схема
             steps.slice(0, 6).forEach((step, index) => {
-                // Укорачиваем длинные шаги
                 const shortStep = step.length > 40 ? step.substring(0, 37) + '...' : step;
                 
                 html += `<div class="flow-step">${shortStep}</div>`;
                 
-                // Добавляем стрелку если не последний шаг
                 if (index < steps.length - 1 && index < 5) {
                     html += '<div class="flow-arrow">↓</div>';
                 }
                 
-                // Добавляем условие если есть "if" в тексте
                 if (step.toLowerCase().includes('if') && index < 4) {
                     html += '<div class="flow-condition">Condition</div>';
                     html += '<div class="flow-arrow">↓</div>';
@@ -688,6 +764,7 @@
                 card.style.display = 'none';
             });
             document.getElementById('progress-fill').style.width = '0%';
+            document.getElementById('legend').style.display = 'none';
         }
 
         function scrollToResults() {
